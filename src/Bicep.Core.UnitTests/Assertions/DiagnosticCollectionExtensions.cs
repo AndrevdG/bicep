@@ -38,6 +38,13 @@ namespace Bicep.Core.UnitTests.Assertions
             return new AndConstraint<DiagnosticCollectionAssertions>(this);
         }
 
+        public AndConstraint<DiagnosticCollectionAssertions> NotContainDiagnostic(string code, string because = "", params object[] becauseArgs)
+        {
+            AssertionExtensions.Should(Subject).NotContain(x => x.Code == code, because, becauseArgs);
+
+            return new AndConstraint<DiagnosticCollectionAssertions>(this);
+        }
+
         public AndConstraint<DiagnosticCollectionAssertions> ContainSingleDiagnostic(string code, DiagnosticLevel level, string message, string because = "", params object[] becauseArgs)
         {
             AssertionExtensions.Should(Subject).ContainSingle(x => x.Code == code && x.Level == level && x.Message == message, because, becauseArgs);

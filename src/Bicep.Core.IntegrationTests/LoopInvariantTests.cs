@@ -65,7 +65,7 @@ resource ds3 'Microsoft.Resources/deploymentScripts@2020-10-01' = [for (script, 
 ";
 
             var result = CompilationHelper.Compile(text);
-            result.Should().NotHaveDiagnostics();
+            result.Should().NotHaveAnyDiagnostics();
         }
 
         [TestMethod]
@@ -123,7 +123,7 @@ module mod5 'mod.bicep' = [for (a,i) in []: {
                 ("main.bicep", text),
                 ("mod.bicep", "param foo string"));
 
-            result.Should().NotHaveDiagnostics();
+            result.Should().NotHaveAnyDiagnostics();
         }
 
         [TestMethod]
