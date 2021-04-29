@@ -220,28 +220,25 @@ namespace Bicep.Core.Emit
                 // provided that they exist on the type
                 var expectedVariantPropertiesForType = bodyType.Properties.Values
                     .Where(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant))
-                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer)
-                    .Select(property => property.Name);
+                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer);
 
-                var propertyValues = expectedVariantPropertiesForType
-                    // collect property values
-                    .Select(propertyName => resource.SafeGetBodyPropertyValue(propertyName))
+                var propertyMap = expectedVariantPropertiesForType
+                    .Select(property => (property, value: resource.SafeGetBodyPropertyValue(property.Name)))
                     // exclude missing or malformed property values
-                    .Where(value => value is not null && value is not SkippedTriviaSyntax)
-                    // make nullability analysis happy
-                    .Select(value => value!)
-                    .ToImmutableArray();
+                    .Where(pair => pair.value is not null && pair.value is not SkippedTriviaSyntax)
+                    .ToImmutableDictionary(pair => pair.property, pair => pair.value!);
 
-                if (!propertyValues.Any())
+                if (!propertyMap.Any(pair=>pair.Key.Flags.HasFlag(TypePropertyFlags.Required)))
                 {
-                    // we should not add a warning before they filled in at least some of the properties we're interested in
+                    // required loop-variant properties have not been set yet
+                    // do not overwarn the user because they have other errors to deal with
                     continue;
                 }
 
                 var indexVariable = @for.IndexVariable;
-                if (propertyValues.All(pair => IsInvariant(semanticModel, itemVariable, indexVariable, pair)))
+                if (propertyMap.All(pair => IsInvariant(semanticModel, itemVariable, indexVariable, pair.Value)))
                 {
-                    diagnosticWriter.Write(DiagnosticBuilder.ForPosition(resource.NameSyntax).ForExpressionContainsLoopInvariants(itemVariable.Name.IdentifierName, indexVariable?.Name.IdentifierName, expectedVariantPropertiesForType));
+                    diagnosticWriter.Write(DiagnosticBuilder.ForPosition(resource.NameSyntax).ForExpressionContainsLoopInvariants(itemVariable.Name.IdentifierName, indexVariable?.Name.IdentifierName, expectedVariantPropertiesForType.Select(p => p.Name)));
                 }
             }
         }
@@ -267,26 +264,26 @@ namespace Bicep.Core.Emit
                 // provided that they exist on the type
                 var expectedVariantPropertiesForType = bodyType.Properties.Values
                     .Where(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant))
-                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer)
-                    .Select(property => property.Name);
+                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer);
 
-                var propertyValues = expectedVariantPropertiesForType
-                    .Select(propertyName => module.SafeGetBodyPropertyValue(propertyName))
-                    .Where(value => value is not null)
-                    .Select(value => value!)
-                    .ToImmutableArray();
+                var propertyMap = expectedVariantPropertiesForType
+                    .Select(property => (property, value: module.SafeGetBodyPropertyValue(property.Name)))
+                    // exclude missing or malformed property values
+                    .Where(pair => pair.value is not null && pair.value is not SkippedTriviaSyntax)
+                    .ToImmutableDictionary(pair => pair.property, pair => pair.value!);
 
-                if (!propertyValues.Any())
+                if (!propertyMap.Any(pair => pair.Key.Flags.HasFlag(TypePropertyFlags.Required)))
                 {
-                    // we should not add a warning before they filled in at least some of the expected variant properties
+                    // required loop-variant properties have not been set yet
+                    // do not overwarn the user because they have other errors to deal with
                     continue;
                 }
 
                 var indexVariable = @for.IndexVariable;
-                if (propertyValues.All(pair => IsInvariant(semanticModel, itemVariable, indexVariable, pair)))
+                if (propertyMap.All(pair => IsInvariant(semanticModel, itemVariable, indexVariable, pair.Value)))
                 {
                     // all the expected variant properties are loop invariant
-                    diagnosticWriter.Write(DiagnosticBuilder.ForPosition(module.NameSyntax).ForExpressionContainsLoopInvariants(itemVariable.Name.IdentifierName, indexVariable?.Name.IdentifierName, expectedVariantPropertiesForType));
+                    diagnosticWriter.Write(DiagnosticBuilder.ForPosition(module.NameSyntax).ForExpressionContainsLoopInvariants(itemVariable.Name.IdentifierName, indexVariable?.Name.IdentifierName, expectedVariantPropertiesForType.Select(p => p.Name)));
                 }
             }
         }
