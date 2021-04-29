@@ -127,7 +127,7 @@ module mod5 'mod.bicep' = [for (a,i) in []: {
         }
 
         [TestMethod]
-        public void ResourceDeclarationWithoutExpectedVariantPropertiesShouldNotProduceTheWarning()
+        public void MissingResourceExpectedVariantPropertiesShouldProduceNoWarning()
         {
             const string text = @"
 resource foos 'Microsoft.Network/dnsZones@2018-05-01' = [for (item, i) in []: {
@@ -141,7 +141,7 @@ resource foos 'Microsoft.Network/dnsZones@2018-05-01' = [for (item, i) in []: {
         }
 
         [TestMethod]
-        public void ModuleDeclarationWithoutExpectedVariantPropertiesShouldNotProduceTheWarning()
+        public void MissingModuleExpectedVariantPropertiesShouldProduceNoWarning()
         {
             const string text = @"
 module mod 'mod.bicep' = [for a in []: {
@@ -160,21 +160,131 @@ module mod 'mod.bicep' = [for a in []: {
         }
 
         [TestMethod]
-        public void UsingInv()
+        public void InvariantModuleNameShouldProduceWarning()
         {
             const string text = @"
 module mod 'mod.bicep' = [for a in []: {
+  name: 'b'
+  params: {
+    foo: 's'
+  }
+}]
+
+module mod2 'mod.bicep' = [for (x, i) in []: {
+  name: 'b2'
   params: {
     foo: 's'
   }
 }]";
-            //bicep(BCP035)
+            var result = CompilationHelper.Compile(
+                ("main.bicep", text),
+                ("mod.bicep", "param foo string"));
+            result.Should().HaveDiagnostics(new[]
+            {
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"a\" must be referenced in at least one of the value expressions of the following properties: \"name\", \"scope\""),
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"x\" or the index variable \"i\" must be referenced in at least one of the value expressions of the following properties in the loop body: \"name\", \"scope\"")
+            });
+        }
+
+        [TestMethod]
+        public void InvariantResourceNameShouldProduceWarning()
+        {
+            const string text = @"
+resource foos 'Microsoft.Network/dnsZones@2018-05-01' = [for (item, i) in []: {
+  name: 's'
+  location:'s'
+}]
+
+resource foos2 'Microsoft.Network/dnsZones@2018-05-01' = [for item in []: {
+  name: 's2'
+  location:'s'
+}]
+
+";
+            var result = CompilationHelper.Compile(text);
+            result.Should().HaveDiagnostics(new[]
+            {
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"item\" or the index variable \"i\" must be referenced in at least one of the value expressions of the following properties in the loop body: \"name\""),
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"item\" must be referenced in at least one of the value expressions of the following properties: \"name\"")
+            });
+        }
+
+        [TestMethod]
+        public void OptionalInvariantResourcePropertiesWhenRequiredPropertyIsMissingShouldNotProduceWarning()
+        {
+            /* 
+             * This asserts that we don't overwarn. If the user didn't yet put in a value for 
+             * a required property that is expected to be loop-variant, we should not warn them.
+             */
+
+            const string text = @"
+resource foo 'Microsoft.Network/dnsZones@2018-05-01' = {
+  name: 'aaaa'
+  location:'s'
+}
+
+resource c3 'Microsoft.Network/dnsZones/CNAME@2018-05-01' = [for (cname,i) in []: {
+  parent: foo
+}]
+";
+            var result = CompilationHelper.Compile(text);
+            result.Should().HaveDiagnostics(new[]
+{
+                ("BCP035", DiagnosticLevel.Error, "The specified \"resource\" declaration is missing the following required properties: \"name\".")
+            });
+        }
+
+        [TestMethod]
+        public void OptionalInvariantModulePropertiesWhenRequiredPropertyIsMissingShouldNotProduceWarning()
+        {
+            /* 
+             * This asserts that we don't overwarn. If the user didn't yet put in a value for 
+             * a required property that is expected to be loop-variant, we should not warn them.
+             */
+
+            const string text = @"
+module mod 'mod.bicep' = [for a in []: {
+  scope: resourceGroup()
+  params: {
+    foo: 's'
+  }
+}]
+";
             var result = CompilationHelper.Compile(
                 ("main.bicep", text),
                 ("mod.bicep", "param foo string"));
             result.Should().HaveDiagnostics(new[]
 {
                 ("BCP035", DiagnosticLevel.Error, "The specified \"module\" declaration is missing the following required properties: \"name\".")
+            });
+        }
+
+        [TestMethod]
+        public void MultipleInvariantModulePropertiesShouldProduceWarning()
+        {
+            const string text = @"
+module mod 'mod.bicep' = [for a in []: {
+  scope: resourceGroup()
+  name: 'b'
+  params: {
+    foo: 's'
+  }
+}]
+
+module mod2 'mod.bicep' = [for (x, i) in []: {
+  scope: resourceGroup()
+  name: 'b2'
+  params: {
+    foo: 's'
+  }
+}]";
+            var result = CompilationHelper.Compile(
+                ("main.bicep", text),
+                ("mod.bicep", "param foo string"));
+            result.Should().HaveDiagnostics(new[]
+            {
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"a\" must be referenced in at least one of the value expressions of the following properties: \"name\", \"scope\""),
+                ("BCP177", DiagnosticLevel.Warning, "The loop item variable \"x\" or the index variable \"i\" must be referenced in at least one of the value expressions of the following properties in the loop body: \"name\", \"scope\"")
             });
         }
     }

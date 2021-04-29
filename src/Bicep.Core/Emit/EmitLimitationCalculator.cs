@@ -218,10 +218,17 @@ namespace Bicep.Core.Emit
 
                 // collect the values of the expected variant properties
                 // provided that they exist on the type
-                var expectedVariantPropertiesForType = ExpectedVariantResourceProperties.Where(propertyName => bodyType.Properties.ContainsKey(propertyName));
+                var expectedVariantPropertiesForType = bodyType.Properties.Values
+                    .Where(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant))
+                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer)
+                    .Select(property => property.Name);
+
                 var propertyValues = expectedVariantPropertiesForType
+                    // collect property values
                     .Select(propertyName => resource.SafeGetBodyPropertyValue(propertyName))
-                    .Where(value => value is not null)
+                    // exclude missing or malformed property values
+                    .Where(value => value is not null && value is not SkippedTriviaSyntax)
+                    // make nullability analysis happy
                     .Select(value => value!)
                     .ToImmutableArray();
 
@@ -258,7 +265,11 @@ namespace Bicep.Core.Emit
 
                 // collect the values of the expected variant properties
                 // provided that they exist on the type
-                var expectedVariantPropertiesForType = ExpectedVariantModuleProperties.Where(propertyName => bodyType.Properties.ContainsKey(propertyName));
+                var expectedVariantPropertiesForType = bodyType.Properties.Values
+                    .Where(property => property.Flags.HasFlag(TypePropertyFlags.LoopVariant))
+                    .OrderBy(property => property.Name, LanguageConstants.IdentifierComparer)
+                    .Select(property => property.Name);
+
                 var propertyValues = expectedVariantPropertiesForType
                     .Select(propertyName => module.SafeGetBodyPropertyValue(propertyName))
                     .Where(value => value is not null)
